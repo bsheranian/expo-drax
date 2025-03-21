@@ -1,0 +1,32 @@
+diff --git a/node_modules/react-native-drax/build/hooks/useDraxRegistry.js b/node_modules/react-native-drax/build/hooks/useDraxRegistry.js
+index cecfaca..35dbeee 100644
+--- a/node_modules/react-native-drax/build/hooks/useDraxRegistry.js
++++ b/node_modules/react-native-drax/build/hooks/useDraxRegistry.js
+@@ -383,18 +383,15 @@ const resetDragInRegistry = (registry, snapbackTarget = types_1.DraxSnapbackTarg
+                     deleteReleaseInRegistry(registry, releaseId);
+                     // Call the snapback end handler, regardless of whether animation of finished.
+                     onSnapbackEnd?.();
+-                    // If the animation finished, update the view state for the released view to be inactive.
+-                    if (finished) {
+-                        stateDispatch(useDraxState_1.actions.updateViewState({
+-                            id: draggedId,
+-                            viewStateUpdate: {
+-                                dragStatus: types_1.DraxViewDragStatus.Inactive,
+-                                hoverPosition: undefined,
+-                                grabOffset: undefined,
+-                                grabOffsetRatio: undefined,
+-                            },
+-                        }));
+-                    }
++                    stateDispatch(useDraxState_1.actions.updateViewState({
++                        id: draggedId,
++                        viewStateUpdate: {
++                            dragStatus: types_1.DraxViewDragStatus.Inactive,
++                            hoverPosition: undefined,
++                            grabOffset: undefined,
++                            grabOffsetRatio: undefined,
++                        },
++                    }));
+                 });
+             }
+         }
