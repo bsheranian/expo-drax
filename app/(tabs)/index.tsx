@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { DraxProvider } from "react-native-drax";
-import DraxKanban, { KanbanColumn } from "@/components/DraxKanban";
+import DraxKanban, { ItemChangeHandler } from "@/components/DraxKanban";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const randomColor = (): string => `#${Math.random().toString(16).slice(-6)}`;
@@ -13,102 +13,113 @@ interface TaskItem {
 }
 
 const data = [
-  "ABCDEF",
+  "ABCDEFGH",
   "IJKLMNOP",
   "QRSTUVWX",
   "YZ",
   "123456",
   "7890",
-  "&*()",
   "!@#$%^",
+  "&*()-+",
+  "{}[]/\\",
 ];
 
 // Sample data
-const INITIAL_DATA: KanbanColumn<TaskItem>[] = data.map((item, index) => ({
-  id: `${index}`,
-  data: item.split("").map((item) => {
+const INITIAL_DATA: TaskItem[][] = data.map((item, index) =>
+  item.split("").map((item) => {
     return {
       id: item,
       title: item,
     };
-  }),
-}));
+  })
+);
 
 const KanbanExample = () => {
-  // State to manage our kanban board data
-  const [columns, setColumns] =
-    useState<KanbanColumn<TaskItem>[]>(INITIAL_DATA);
+  const [lists, setLists] = useState<TaskItem[][]>(INITIAL_DATA);
 
-  // Handle moving items between columns
-  const handleColumnChange = (
-    sourceColumnId: string,
-    sourceIndex: number,
-    destinationColumnId: string,
-    destinationIndex: number,
-    item: TaskItem
-  ) => {
+  const handleItemChange: ItemChangeHandler = ({ source, destination }) => {
     // Create a deep copy of the columns array to work with
-    const newColumns = [
-      ...columns.map((col) => ({
-        ...col,
-        data: [...col.data],
-      })),
-    ];
+    const newLists: TaskItem[][] = [...lists.map((list) => [...list])];
 
-    // Find source and destination columns
-    const sourceColumn = newColumns.find((col) => col.id === sourceColumnId);
-    const destColumn = newColumns.find((col) => col.id === destinationColumnId);
+    if (destination.rowIndex === newLists.length) {
+      newLists.push([]);
+    }
+
+    const sourceColumn = newLists[source.rowIndex];
+    const destColumn = newLists[destination.rowIndex];
 
     if (!sourceColumn || !destColumn) return;
 
-    // Remove from source column
-    const [removed] = sourceColumn.data.splice(sourceIndex, 1);
+    const [removed] = sourceColumn.splice(source.index, 1);
 
-    // Add to destination column
-    destColumn.data.splice(destinationIndex, 0, removed);
+    destColumn.splice(destination.index, 0, removed);
 
-    // Update state - using setTimeout to improve animation flow
-    // This helps ensure the animation is smoother by letting the UI update first
-    setTimeout(() => {
-      setColumns(newColumns);
-    }, 0);
+    setLists(newLists.filter((list) => !!list.length));
   };
 
-  // Render a task item
-  const renderTaskItem = (item: TaskItem, index: number, columnId: string) => {
+  const renderTaskItem = (item: TaskItem, index: number, rowIndex: number) => {
     return (
       <View
         style={{
-          padding: 12,
           flex: 1,
-          borderRadius: 10,
-          backgroundColor: "#fafafa",
-          borderWidth: 1,
-          borderColor: "#ddd",
+          justifyContent: "center",
+          alignItems: "center",
         }}
       >
-        <Text style={styles.taskTitle}>
-          {item.title}-{columnId}-{index}
-        </Text>
+        <Text style={styles.taskTitle}>{item.title}</Text>
       </View>
     );
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.header}>Kanban Board</Text>
+      <Text style={styles.header}>Planogram</Text>
       <ScrollView>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView
+          pinchGestureEnabled // FIXME: figure out how to enable pinch to zoom
+          horizontal
+          showsHorizontalScrollIndicator={false}
+        >
           <DraxProvider>
             <DraxKanban
-              columns={columns}
-              onColumnChange={handleColumnChange}
+              style={{ padding: 8, gap: 8 }}
+              rowStyle={(rowIndex) => ({
+                gap: 8,
+                padding: 8,
+              })}
+              itemStyles={{
+                style: {
+                  borderRadius: 10,
+                  backgroundColor: "#ffa",
+                },
+                receivingStyle: {
+                  borderRadius: 10,
+                  backgroundColor: "#afa",
+                },
+                hoverDraggingWithoutReceiverStyle: {
+                  backgroundColor: "#faa",
+                },
+              }}
+              data={lists}
               renderItem={renderTaskItem}
-              // style={styles.kanban}
-              // columnStyle={styles.column}
-              // listContainerStyle={styles.list}
+              onItemChange={handleItemChange}
               itemKeyExtractor={(item) => item.id}
-              longPressDelay={150} // Make items draggable after holding for 150ms
+              longPressDelay={150}
+              itemWidth={50}
+              itemHeight={50}
+              rowHeaderComponent={(rowIndex) => (
+                <View
+                  style={{
+                    flex: 1,
+                    justifyContent: "center",
+                    backgroundColor: "#afa",
+                    padding: 8,
+                    borderRadius: 10,
+                  }}
+                >
+                  <Text>Row {rowIndex}</Text>
+                </View>
+              )}
             />
           </DraxProvider>
         </ScrollView>
@@ -120,7 +131,8 @@ const KanbanExample = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#777777",
+    backgroundColor: "#ddd",
+    paddingBottom: 50,
   },
   header: {
     fontSize: 22,

@@ -1,337 +1,283 @@
-import React, {
-  useState,
-  useCallback,
-  useRef,
-  ReactNode,
-  ForwardedRef,
-  forwardRef,
-} from "react";
-import {
-  View,
-  ViewStyle,
-  StyleProp,
-  LayoutChangeEvent,
-  findNodeHandle,
-  FlatList,
-} from "react-native";
+import React, { useState, useCallback, ReactNode } from "react";
+import { ViewStyle, StyleSheet, StyleProp } from "react-native";
 import {
   DraxView,
   DraxList,
   DraxSnapbackTargetPreset,
-  DraxViewMeasurements,
   DraxMonitorEventData,
+  DraxViewStyleProps,
+  DraxListProps,
 } from "react-native-drax";
+import DraxConditinalDroppable from "./DraxConditionalDroppable";
 
-const randomColor = (): string => `#${Math.random().toString(16).slice(-6)}`;
-
-export interface KanbanColumn<T> {
-  id: string;
+interface KanbanRowProps<T> {
   data: T[];
-}
-
-export interface DraxKanbanProps<T> {
-  columns: KanbanColumn<T>[];
-  onColumnChange?: (
-    sourceColumnId: string,
-    sourceIndex: number,
-    destinationColumnId: string,
-    destinationIndex: number,
-    item: T
-  ) => void;
-  renderItem: (item: T, index: number, columnId: string) => ReactNode;
-  style?: StyleProp<ViewStyle>;
-  columnStyle?: StyleProp<ViewStyle>;
-  listStyle?: StyleProp<ViewStyle>;
-  listContainerStyle?: StyleProp<ViewStyle>;
-  horizontal?: boolean;
-  itemKeyExtractor?: (item: T, index: number) => string;
+  rowIndex: number;
+  renderItem: (item: T, index: number, rowIndex: number) => ReactNode;
   longPressDelay?: number;
+  itemStyles?: DraxViewStyleProps;
+  itemWidth: ViewStyle["width"];
+  itemHeight: ViewStyle["height"];
+  onItemChange?: ItemChangeHandler;
+  itemKeyExtractor?: (item: T, rowIndex: number, index: number) => string;
+  style?: StyleProp<ViewStyle>;
+  ListHeaderComponent?: DraxListProps<T>["ListHeaderComponent"];
 }
 
-interface InternalDragItem<T> {
-  item: T;
-  columnId: string;
-  index: number;
-}
+function KanbanRow<T>({
+  data,
+  rowIndex,
+  renderItem,
+  longPressDelay,
+  itemStyles = {},
+  itemWidth,
+  itemHeight,
+  onItemChange,
+  itemKeyExtractor,
+  style,
+  ListHeaderComponent,
+}: KanbanRowProps<T>) {
+  const [isReceivingExternal, setIsReceivingExternal] = useState(false);
 
-function DraxKanbanWithRef<T>(
-  {
-    columns,
-    onColumnChange,
-    renderItem,
-    style,
-    columnStyle,
-    listStyle,
-    listContainerStyle,
-    horizontal = false,
-    itemKeyExtractor,
-    longPressDelay,
-  }: DraxKanbanProps<T>,
-  ref: ForwardedRef<View>
-) {
-  // Store refs to each DraxList
-  const listRefs = useRef<Record<string, FlatList<T> | null>>({});
+  const { receivingStyle, ...itemStyleProps } = itemStyles;
 
-  // Store measurements of each column
-  const [columnMeasurements, setColumnMeasurements] = useState<
-    Record<string, DraxViewMeasurements>
-  >({});
-
-  // Root node handle for measuring
-  const rootNodeHandleRef = useRef<number | null>(null);
-
-  // Measure a column when it renders
-  const measureColumn = useCallback(
-    (columnId: string, event: LayoutChangeEvent) => {
-      const { width, height, x, y } = event.nativeEvent.layout;
-      setColumnMeasurements((prev) => ({
-        ...prev,
-        [columnId]: { width, height, x, y },
-      }));
+  const handleReceiveDragEnter = useCallback(
+    (event: DraxMonitorEventData) => {
+      const isExternal = event.dragged.payload.rowIndex !== rowIndex;
+      setIsReceivingExternal(isExternal);
     },
-    []
+    [rowIndex]
   );
 
-  // No need for a separate handler function as we're directly handling events in the component;
+  const handleReceiveDragExit = useCallback(() => {
+    setIsReceivingExternal(false);
+  }, []);
 
-  // Get a key for each item in the list
   const getItemKey = useCallback(
     (item: T, index: number) => {
       return itemKeyExtractor
-        ? itemKeyExtractor(item, index)
-        : index.toString();
+        ? itemKeyExtractor(item, rowIndex, index)
+        : `${rowIndex}-${index}`;
     },
-    [itemKeyExtractor]
+    [itemKeyExtractor, rowIndex]
   );
 
-  // Set ref to node handle for measurement
-  const setRootRef = useCallback(
-    (node: View | null) => {
-      if (node) {
-        rootNodeHandleRef.current = findNodeHandle(node);
-
-        // Forward the ref if provided
-        if (typeof ref === "function") {
-          ref(node);
-        } else if (ref) {
-          ref.current = node;
-        }
-      }
-    },
-    [ref]
-  );
-
-  // Handle when an item is dragged between columns or reordered within a column
   const handleItemDragDrop = useCallback(
-    ({
-      item,
-      sourceColumnId,
-      sourceIndex,
-      destinationColumnId,
-      destinationIndex,
-    }: {
-      item: T;
-      sourceColumnId: string;
-      sourceIndex: number;
-      destinationColumnId: string;
-      destinationIndex: number;
-    }) => {
-      onColumnChange?.(
-        sourceColumnId,
-        sourceIndex,
-        destinationColumnId,
-        destinationIndex,
-        item
-      );
+    (props: { source: KanbanCoordinate; destination: KanbanCoordinate }) => {
+      onItemChange?.(props);
       return DraxSnapbackTargetPreset.None;
     },
-    [onColumnChange]
+    [onItemChange]
   );
 
-  // Render a column
-  const renderColumn = useCallback(
-    (column: KanbanColumn<T>, columnIndex: number) => {
-      const [isReceivingExternal, setIsReceivingExternal] = useState(false);
-
-      // Track whether we're receiving from external source or internal reordering
-      const handleReceiveDragEnter = useCallback(
-        (event: DraxMonitorEventData) => {
-          const isExternal = event.dragged.payload.columnId !== column.id;
-          setIsReceivingExternal(isExternal);
+  const getItemStyles = useCallback(
+    (item: T) => {
+      const index = data.indexOf(item);
+      return {
+        payload: {
+          item,
+          rowIndex,
+          originalIndex: index,
+          index,
         },
-        [column.id]
-      );
+        ...(isReceivingExternal && {
+          receivingStyle: receivingStyle,
+        }),
+      };
+    },
+    [isReceivingExternal, data, rowIndex, receivingStyle]
+  );
 
-      // Reset when drag exits
-      const handleReceiveDragExit = useCallback(() => {
-        setIsReceivingExternal(false);
-      }, []);
-
-      // Create conditional styles based on drag source
-      const getItemStyles = useCallback(
-        (item: T) => {
-          const index = column.data.indexOf(item);
-          return {
-            payload: {
-              item,
-              columnId: column.id,
-              originalIndex: index,
-              index,
+  return (
+    <DraxView
+      draggable={false}
+      receptive={false}
+      monitoring={true}
+      onMonitorDragEnter={handleReceiveDragEnter}
+      onMonitorDragExit={handleReceiveDragExit}
+      onMonitorDragDrop={handleReceiveDragExit}
+      onMonitorDragEnd={handleReceiveDragExit}
+    >
+      <DraxList
+        contentContainerStyle={[style, { flex: 1 }]}
+        ListHeaderComponent={ListHeaderComponent}
+        horizontal={true}
+        scrollEnabled={false}
+        data={data}
+        keyExtractor={(item, index) => getItemKey(item, index)}
+        viewPropsExtractor={getItemStyles}
+        renderItemContent={(info, props) => {
+          const { item, index } = info;
+          return renderItem(item, index, rowIndex);
+        }}
+        itemStyles={{
+          ...itemStyleProps,
+          style: {
+            ...StyleSheet.flatten(itemStyleProps.style || {}),
+            width: itemWidth,
+            height: itemHeight,
+          },
+        }}
+        onItemReorder={(data) => {
+          return handleItemDragDrop({
+            source: {
+              index: data.fromIndex,
+              rowIndex,
             },
-            ...(isReceivingExternal && {
-              receivingStyle: {
-                borderStyle: "dashed" as "dashed",
-                borderColor: "#00ff00",
-                borderRadius: 10,
-                borderWidth: 1,
-              },
-            }),
-          };
-        },
-        [isReceivingExternal, column.data, column.id]
-      );
-
-      return (
-        <View key={column.id} onLayout={(e) => measureColumn(column.id, e)}>
+            destination: {
+              index: data.toIndex,
+              rowIndex,
+            },
+          });
+        }}
+        longPressDelay={longPressDelay}
+        ListFooterComponentStyle={{ flex: 1 }}
+        ListFooterComponent={
           <DraxView
+            receptive={isReceivingExternal}
             draggable={false}
-            receptive={false}
-            monitoring={true}
-            onMonitorDragEnter={handleReceiveDragEnter}
-            onMonitorDragExit={handleReceiveDragExit}
-            onMonitorDragDrop={handleReceiveDragExit}
-            onMonitorDragEnd={handleReceiveDragExit}
-            style={{ flexDirection: "row" }}
-          >
-            <DraxList
-              id={column.id}
-              horizontal={true}
-              ref={(listRef) => {
-                listRefs.current[column.id] = listRef;
-              }}
-              scrollEnabled={false}
-              data={column.data}
-              keyExtractor={(item, index) => getItemKey(item, index)}
-              viewPropsExtractor={getItemStyles}
-              renderItemContent={(info, props) => {
-                const { item, index } = info;
-                return renderItem(item, index, column.id);
-              }}
-              itemStyles={{
-                style: {
-                  width: 80,
-                  height: 80,
-                  borderRadius: 10,
-                },
-                hoverDraggingWithoutReceiverStyle: {
-                  borderStyle: "dashed" as "dashed",
-                  borderColor: "#ff0000",
-                  borderRadius: 10,
-                  borderWidth: 1,
-                },
-              }}
-              onItemReorder={(data) => {
-                return handleItemDragDrop({
-                  item: data.fromItem,
-                  sourceColumnId: column.id,
-                  sourceIndex: data.fromIndex,
-                  destinationColumnId: column.id,
-                  destinationIndex: data.toIndex,
-                });
-              }}
-              longPressDelay={longPressDelay}
-            />
+            style={{
+              flex: 1,
+              minWidth: itemWidth,
+            }}
+            receivingStyle={receivingStyle}
+            payload={{
+              rowIndex,
+              index: data.length,
+              originalIndex: data.length,
+            }}
+          />
+        }
+      />
+    </DraxView>
+  );
+}
 
-            <DraxView
-              receptive={isReceivingExternal}
-              draggable={false}
-              style={{
-                flex: 1,
-                borderRadius: 10,
-                minHeight: 80,
-                minWidth: 80,
-                // FIXME: match with item styles
-              }}
-              receivingStyle={{
-                borderStyle: "dashed" as "dashed",
-                borderColor: "#00ff00",
-                borderRadius: 10,
-                borderWidth: 1,
-              }}
-              payload={{
-                columnId: column.id,
-                index: column.data.length,
-                originalIndex: column.data.length,
-              }}
-            />
-          </DraxView>
-        </View>
+interface KanbanCoordinate {
+  rowIndex: number;
+  index: number;
+}
+
+export type ItemChangeHandler = (props: {
+  source: KanbanCoordinate;
+  destination: KanbanCoordinate;
+}) => void;
+
+export interface DraxKanbanProps<T> {
+  data: T[][];
+  onItemChange?: ItemChangeHandler;
+  renderItem: (item: T, index: number, rowIndex: number) => ReactNode;
+  itemKeyExtractor?: (item: T, rowIndex: number) => string;
+  longPressDelay?: number;
+  itemStyles: DraxViewStyleProps;
+  itemWidth: ViewStyle["width"];
+  itemHeight: ViewStyle["height"];
+  style?: StyleProp<ViewStyle>;
+  rowStyle?: (rowIndex: number) => StyleProp<ViewStyle>;
+  rowHeaderComponent?: (
+    rowIndex: number
+  ) => DraxListProps<T>["ListHeaderComponent"];
+}
+
+function DraxKanban<T>({
+  data,
+  onItemChange,
+  renderItem,
+  itemKeyExtractor,
+  longPressDelay,
+  itemStyles,
+  itemWidth,
+  itemHeight,
+  style,
+  rowStyle,
+  rowHeaderComponent,
+}: DraxKanbanProps<T>) {
+  const renderRow = useCallback(
+    (data: T[], rowIndex: number) => {
+      return (
+        <KanbanRow<T>
+          key={`row-${rowIndex}`}
+          data={data}
+          rowIndex={rowIndex}
+          itemKeyExtractor={itemKeyExtractor}
+          renderItem={renderItem}
+          itemStyles={itemStyles}
+          longPressDelay={longPressDelay}
+          onItemChange={onItemChange}
+          itemWidth={itemWidth}
+          itemHeight={itemHeight}
+          style={rowStyle?.(rowIndex)}
+          ListHeaderComponent={rowHeaderComponent?.(rowIndex)}
+        />
       );
     },
     [
-      columnStyle,
-      listStyle,
-      listContainerStyle,
       renderItem,
-      getItemKey,
       longPressDelay,
-      onColumnChange,
+      onItemChange,
+      itemStyles,
+      itemWidth,
+      itemHeight,
+      rowStyle,
+      rowHeaderComponent,
     ]
   );
 
   return (
-    <View
-      ref={setRootRef}
-      style={[
-        { flex: 1 },
-        horizontal ? { flexDirection: "row" } : { flexDirection: "column" },
-        // style,
-      ]}
+    <DraxView
+      style={style}
+      draggable={false}
+      receptive={false}
+      monitoring={true}
+      onMonitorDragDrop={(monitorEvent) => {
+        const { dragged, receiver } = monitorEvent;
+
+        if (dragged?.payload && receiver?.payload) {
+          const sourcerowIndex = dragged.payload.rowIndex;
+          const sourceIndex = dragged.payload.index;
+          const destinationrowIndex = receiver.payload.rowIndex;
+          const destinationIndex = receiver.payload.index;
+
+          // Only handle cross-row moves
+          if (sourcerowIndex !== destinationrowIndex) {
+            onItemChange?.({
+              source: {
+                index: sourceIndex,
+                rowIndex: sourcerowIndex,
+              },
+              destination: {
+                index: destinationIndex,
+                rowIndex: destinationrowIndex,
+              },
+            });
+          }
+        }
+
+        return undefined;
+      }}
     >
-      <DraxView
+      {data.map(renderRow)}
+      <DraxConditinalDroppable<{ rowIndex: number }>
+        draggable={false}
         style={{
           flex: 1,
-          // gap: 8,
+          minHeight: itemHeight,
         }}
-        draggable={false}
-        receptive={false}
-        monitoring={true}
-        onMonitorDragDrop={(monitorEvent) => {
-          // Handle cross-list drag and drop detection here
-          const { dragged, receiver } = monitorEvent;
-
-          if (dragged?.payload && receiver?.payload) {
-            const sourceColumnId = dragged.payload.columnId;
-            const sourceIndex = dragged.payload.index;
-            const sourceItem = dragged.payload.item;
-            const destColumnId = receiver.payload.columnId;
-            const destIndex = receiver.payload.index;
-
-            // Only handle cross-column moves
-
-            if (sourceColumnId !== destColumnId && onColumnChange) {
-              onColumnChange(
-                sourceColumnId,
-                sourceIndex,
-                destColumnId,
-                destIndex,
-                sourceItem
-              );
-            }
-          }
-
-          return undefined;
+        receivingStyle={itemStyles.receivingStyle}
+        payload={{
+          rowIndex: data.length,
+          index: 0,
+          originalIndex: 0,
         }}
-      >
-        {columns.map(renderColumn)}
-      </DraxView>
-    </View>
+        condition={(dragged) => {
+          return (
+            dragged.payload.rowIndex !== data.length - 1 ||
+            data[dragged.payload.rowIndex].length > 1
+          );
+        }}
+      />
+    </DraxView>
   );
 }
-
-// Use forwardRef to be able to forward the ref to the root View
-export const DraxKanban = forwardRef(DraxKanbanWithRef) as <T>(
-  props: DraxKanbanProps<T> & { ref?: ForwardedRef<View> }
-) => ReactNode;
 
 export default DraxKanban;
