@@ -1,10 +1,8 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { DraxProvider } from "react-native-drax";
-import DraxKanban, { ItemChangeHandler } from "@/components/DraxKanban";
+import RaggedGrid, { ItemChangeHandler } from "@/components/RaggedGrid";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-const randomColor = (): string => `#${Math.random().toString(16).slice(-6)}`;
 
 // Define interface for our task items
 interface TaskItem {
@@ -81,7 +79,7 @@ const KanbanExample = () => {
           showsHorizontalScrollIndicator={false}
         >
           <DraxProvider>
-            <DraxKanban
+            <RaggedGrid
               style={{ padding: 8, gap: 8 }}
               rowStyle={(rowIndex) => ({
                 gap: 8,
