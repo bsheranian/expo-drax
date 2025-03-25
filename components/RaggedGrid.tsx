@@ -100,8 +100,8 @@ function RaggedGridRow<T>({
             rowIndex: props.dragged.payload.rowIndex,
           },
           destination: {
-            index: props.receiver.payload.index,
-            rowIndex: props.receiver.payload.rowIndex,
+            index: props.toIndex,
+            rowIndex,
           },
         });
       }}
@@ -118,22 +118,7 @@ function RaggedGridRow<T>({
         });
       }}
       longPressDelay={longPressDelay}
-      ListFooterComponentStyle={{ flex: 1 }}
-      ListFooterComponent={
-        <DraxView
-          draggable={false}
-          style={{
-            flex: 1,
-            minWidth: itemWidth,
-          }}
-          receivingStyle={itemStyles.receivingStyle}
-          payload={{
-            rowIndex,
-            index: data.length,
-            originalIndex: data.length,
-          }}
-        />
-      }
+      ListFooterComponent={<View style={{ minWidth: itemWidth }} />}
     />
   );
 }
@@ -211,24 +196,29 @@ function RaggedGrid<T>({
   return (
     <View style={style}>
       {data.map(renderRow)}
-      <DraxConditinalDroppable<{ rowIndex: number }>
+
+      <DraxView
+        // FIXME: add row header for new row placeholder?
+        receptive={true}
         draggable={false}
+        onReceiveDragDrop={(props) => {
+          onItemChange?.({
+            source: {
+              rowIndex: props.dragged.payload.rowIndex,
+              index: props.dragged.payload.index,
+            },
+            destination: {
+              rowIndex: data.length,
+              index: 0,
+            },
+          });
+          return DraxSnapbackTargetPreset.None;
+        }}
         style={{
           flex: 1,
           minHeight: itemHeight,
         }}
         receivingStyle={itemStyles.receivingStyle}
-        payload={{
-          rowIndex: data.length,
-          index: 0,
-          originalIndex: 0,
-        }}
-        condition={(dragged) => {
-          return (
-            dragged.payload.rowIndex !== data.length - 1 ||
-            data[dragged.payload.rowIndex].length > 1
-          );
-        }}
       />
     </View>
   );
