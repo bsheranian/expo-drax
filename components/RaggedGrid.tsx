@@ -6,10 +6,9 @@ import {
   DraxSnapbackTargetPreset,
   DraxViewStyleProps,
   DraxListProps,
-} from "react-native-drax";
-import DraxConditinalDroppable from "./DraxConditionalDroppable";
+} from "react-native-drax-2";
 
-interface RaggedGridRowProps<T> {
+interface DraxRaggedArrayRowProps<T> {
   data: T[];
   rowIndex: number;
   renderItem: (item: T, index: number, rowIndex: number) => ReactNode;
@@ -17,13 +16,13 @@ interface RaggedGridRowProps<T> {
   itemStyles?: DraxViewStyleProps;
   itemWidth: number;
   itemHeight: number;
-  onItemChange?: ItemChangeHandler;
+  onItemChange?: ItemChangeHandler<T>;
   itemKeyExtractor?: (item: T, rowIndex: number, index: number) => string;
   style?: ViewStyle;
   ListHeaderComponent?: DraxListProps<T>["ListHeaderComponent"];
 }
 
-function RaggedGridRow<T>({
+function DraxRaggedArrayRow<T>({
   data,
   rowIndex,
   renderItem,
@@ -35,7 +34,7 @@ function RaggedGridRow<T>({
   itemKeyExtractor,
   style = {},
   ListHeaderComponent,
-}: RaggedGridRowProps<T>) {
+}: DraxRaggedArrayRowProps<T>) {
   const getItemKey = useCallback(
     (item: T, index: number) => {
       return itemKeyExtractor
@@ -46,10 +45,7 @@ function RaggedGridRow<T>({
   );
 
   const handleItemDragDrop = useCallback(
-    (props: {
-      source: RaggedGridCoordinate;
-      destination: RaggedGridCoordinate;
-    }) => {
+    (props: ItemChangeHandlerProps<T>) => {
       onItemChange?.(props);
       return DraxSnapbackTargetPreset.None;
     },
@@ -93,26 +89,30 @@ function RaggedGridRow<T>({
         },
       }}
       allowReceivingExternalItems={true}
-      onReceiveExternalItem={(props) => {
+      onReceiveExternalItem={({ dragged, toIndex }) => {
         return handleItemDragDrop({
           source: {
-            index: props.dragged.payload.index,
-            rowIndex: props.dragged.payload.rowIndex,
+            item: dragged.payload.item,
+            index: dragged.payload.index,
+            rowIndex: dragged.payload.rowIndex,
           },
           destination: {
-            index: props.toIndex,
+            item: data[toIndex],
+            index: toIndex,
             rowIndex,
           },
         });
       }}
-      onItemReorder={(data) => {
+      onItemReorder={({ fromIndex, toIndex }) => {
         return handleItemDragDrop({
           source: {
-            index: data.fromIndex,
+            item: data[fromIndex],
+            index: fromIndex,
             rowIndex,
           },
           destination: {
-            index: data.toIndex,
+            item: data[toIndex],
+            index: toIndex,
             rowIndex,
           },
         });
@@ -123,23 +123,25 @@ function RaggedGridRow<T>({
   );
 }
 
-interface RaggedGridCoordinate {
+export interface DraxRaggedArrayCoordinate {
   rowIndex: number;
   index: number;
 }
 
-export type ItemChangeHandler = (props: {
-  source: RaggedGridCoordinate;
-  destination: RaggedGridCoordinate;
-}) => void;
+export interface ItemChangeHandlerProps<T> {
+  source: DraxRaggedArrayCoordinate & { item: T | null };
+  destination: DraxRaggedArrayCoordinate & { item: T | null };
+}
 
-export interface RaggedGridProps<T> {
+export type ItemChangeHandler<T> = (props: ItemChangeHandlerProps<T>) => void;
+
+export interface DraxRaggedArrayProps<T> {
   data: T[][];
-  onItemChange?: ItemChangeHandler;
+  onItemChange?: ItemChangeHandler<T>;
   renderItem: (item: T, index: number, rowIndex: number) => ReactNode;
   itemKeyExtractor?: (item: T, rowIndex: number) => string;
   longPressDelay?: number;
-  itemStyles: DraxViewStyleProps;
+  itemStyles?: DraxViewStyleProps;
   itemWidth: number;
   itemHeight: number;
   style?: StyleProp<ViewStyle>;
@@ -147,9 +149,10 @@ export interface RaggedGridProps<T> {
   rowHeaderComponent?: (
     rowIndex: number
   ) => DraxListProps<T>["ListHeaderComponent"];
+  onDragStart?: () => void;
 }
 
-function RaggedGrid<T>({
+function DraxRaggedArray<T>({
   data,
   onItemChange,
   renderItem,
@@ -161,11 +164,12 @@ function RaggedGrid<T>({
   style,
   rowStyle,
   rowHeaderComponent,
-}: RaggedGridProps<T>) {
+  onDragStart,
+}: DraxRaggedArrayProps<T>) {
   const renderRow = useCallback(
     (data: T[], rowIndex: number) => {
       return (
-        <RaggedGridRow<T>
+        <DraxRaggedArrayRow<T>
           key={`row-${rowIndex}`}
           data={data}
           rowIndex={rowIndex}
@@ -194,9 +198,13 @@ function RaggedGrid<T>({
   );
 
   return (
-    <View style={style}>
+    <DraxView
+      draggable={false}
+      monitoring={true}
+      onMonitorDragStart={onDragStart}
+      style={style}
+    >
       {data.map(renderRow)}
-
       <DraxView
         // FIXME: add row header for new row placeholder?
         receptive={true}
@@ -204,10 +212,12 @@ function RaggedGrid<T>({
         onReceiveDragDrop={(props) => {
           onItemChange?.({
             source: {
+              item: props.dragged.payload.item,
               rowIndex: props.dragged.payload.rowIndex,
               index: props.dragged.payload.index,
             },
             destination: {
+              item: null,
               rowIndex: data.length,
               index: 0,
             },
@@ -218,10 +228,10 @@ function RaggedGrid<T>({
           flex: 1,
           minHeight: itemHeight,
         }}
-        receivingStyle={itemStyles.receivingStyle}
+        receivingStyle={itemStyles?.receivingStyle}
       />
-    </View>
+    </DraxView>
   );
 }
 
-export default RaggedGrid;
+export default DraxRaggedArray;

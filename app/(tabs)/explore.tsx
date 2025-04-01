@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Text, View, StyleSheet, SafeAreaView } from "react-native";
 
-import { DraxProvider, DraxList } from "react-native-drax";
+import { DraxList } from "react-native-drax-2";
 
 const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
@@ -36,23 +36,21 @@ const HomeScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <DraxProvider>
-        <DraxList<string>
-          data={alphaData}
-          contentContainerStyle={{ gap: 80 }}
-          renderItemContent={({ item }) => (
-            <View style={[styles.alphaItem, getItemStyleTweaks(item)]}>
-              <Text style={styles.alphaText}>{item}</Text>
-            </View>
-          )}
-          onItemReorder={({ fromIndex, toIndex }) => {
-            const newData = alphaData.slice();
-            newData.splice(toIndex, 0, newData.splice(fromIndex, 1)[0]);
-            setAlphaData(newData);
-          }}
-          keyExtractor={(item) => item}
-        />
-      </DraxProvider>
+      <DraxList<string>
+        data={alphaData}
+        contentContainerStyle={{ gap: 80 }}
+        renderItemContent={({ item }) => (
+          <View style={[styles.alphaItem, getItemStyleTweaks(item)]}>
+            <Text style={styles.alphaText}>{item}</Text>
+          </View>
+        )}
+        onItemReorder={({ fromIndex, toIndex }) => {
+          const newData = alphaData.slice();
+          newData.splice(toIndex, 0, newData.splice(fromIndex, 1)[0]);
+          setAlphaData(newData);
+        }}
+        keyExtractor={(item) => item}
+      />
     </SafeAreaView>
   );
 };

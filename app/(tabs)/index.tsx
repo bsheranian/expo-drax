@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
-import { DraxProvider } from "react-native-drax";
+import { View, Text, StyleSheet } from "react-native";
+import { DraxScrollView } from "react-native-drax-2";
 import RaggedGrid, { ItemChangeHandler } from "@/components/RaggedGrid";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -35,7 +35,10 @@ const INITIAL_DATA: TaskItem[][] = data.map((item, index) =>
 const KanbanExample = () => {
   const [lists, setLists] = useState<TaskItem[][]>(INITIAL_DATA);
 
-  const handleItemChange: ItemChangeHandler = ({ source, destination }) => {
+  const handleItemChange: ItemChangeHandler<TaskItem> = ({
+    source,
+    destination,
+  }) => {
     // Create a deep copy of the columns array to work with
     const newLists: TaskItem[][] = [...lists.map((list) => [...list])];
 
@@ -72,56 +75,55 @@ const KanbanExample = () => {
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.header}>Planogram</Text>
-      <ScrollView>
-        <ScrollView
+      <DraxScrollView>
+        <DraxScrollView
           pinchGestureEnabled // FIXME: figure out how to enable pinch to zoom
           horizontal
           showsHorizontalScrollIndicator={false}
         >
-          <DraxProvider>
-            <RaggedGrid
-              style={{ padding: 8, gap: 8 }}
-              rowStyle={(rowIndex) => ({
-                gap: 8,
-                padding: 8,
-              })}
-              itemStyles={{
-                style: {
-                  borderRadius: 10,
-                  backgroundColor: "#ffa",
-                },
-                receivingStyle: {
-                  borderRadius: 10,
+          <RaggedGrid
+            style={{ padding: 8 }}
+            rowStyle={(rowIndex) => ({
+              gap: 8,
+              paddingTop: rowIndex === 0 ? 0 : 4,
+              paddingBottom: rowIndex === lists.length - 1 ? 0 : 4,
+            })}
+            itemStyles={{
+              style: {
+                borderRadius: 10,
+                backgroundColor: "#ffa",
+              },
+              receivingStyle: {
+                borderRadius: 10,
+                backgroundColor: "#afa",
+              },
+              hoverDraggingWithoutReceiverStyle: {
+                backgroundColor: "#faa",
+              },
+            }}
+            data={lists}
+            renderItem={renderTaskItem}
+            onItemChange={handleItemChange}
+            itemKeyExtractor={(item) => item.id}
+            longPressDelay={150}
+            itemWidth={50}
+            itemHeight={80}
+            rowHeaderComponent={(rowIndex) => (
+              <View
+                style={{
+                  flex: 1,
+                  justifyContent: "center",
                   backgroundColor: "#afa",
-                },
-                hoverDraggingWithoutReceiverStyle: {
-                  backgroundColor: "#faa",
-                },
-              }}
-              data={lists}
-              renderItem={renderTaskItem}
-              onItemChange={handleItemChange}
-              itemKeyExtractor={(item) => item.id}
-              longPressDelay={150}
-              itemWidth={50}
-              itemHeight={50}
-              rowHeaderComponent={(rowIndex) => (
-                <View
-                  style={{
-                    flex: 1,
-                    justifyContent: "center",
-                    backgroundColor: "#afa",
-                    padding: 8,
-                    borderRadius: 10,
-                  }}
-                >
-                  <Text>Row {rowIndex}</Text>
-                </View>
-              )}
-            />
-          </DraxProvider>
-        </ScrollView>
-      </ScrollView>
+                  padding: 8,
+                  borderRadius: 10,
+                }}
+              >
+                <Text>Row {rowIndex}</Text>
+              </View>
+            )}
+          />
+        </DraxScrollView>
+      </DraxScrollView>
     </SafeAreaView>
   );
 };
@@ -130,7 +132,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#ddd",
-    paddingBottom: 50,
+    paddingBottom: 90,
   },
   header: {
     fontSize: 22,
